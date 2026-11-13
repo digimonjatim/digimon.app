@@ -28,6 +28,7 @@
   .hide{display:none!important} .msg{margin-top:14px;padding:10px 12px;border-radius:10px;font-size:13px;background:#fef3f2;color:var(--err)}
   .msg.ok{background:#ecfdf3;color:#027a48}
   .otp{letter-spacing:.5em;text-align:center;font-size:22px;font-weight:600}
+  .hint{margin-top:6px;font-size:12.5px;color:var(--mut)} .hint b{color:var(--brand)} .hint.warn{color:#b54708}
   .center{text-align:center} .big{font-size:42px;margin:8px 0}
   .pill{display:inline-block;padding:4px 12px;border-radius:99px;background:#fffaeb;color:#b54708;font-weight:600;font-size:13px}
   .foot{margin-top:18px;text-align:center;font-size:13px;color:var(--mut)} .foot a{color:var(--brand);font-weight:600}
@@ -42,10 +43,11 @@
   <!-- STEP 1 -->
   <section id="p1">
     <label for="company">Company Name</label>
-    <select id="company"><option value="">— Pilih —</option>
-      <option>PT. TELKOM AKSES</option><option>MITRA</option><option>TSEL</option><option>TELKOM GROUP</option><option>TIF</option></select>
+    <input id="company" list="companyList" autocomplete="off" placeholder="Pilih dari daftar atau ketik manual">
+    <datalist id="companyList"></datalist>
+    <div id="coHint" class="hint hide"></div>
     <div id="roleWrap" class="hide"><label for="role">Role Access</label>
-      <select id="role"><option value="">— Pilih —</option><option>SDI</option><option>CONSTRUCTION</option><option>OPERATION</option></select></div>
+      <select id="role"></select></div>
     <label for="fullName">Full Name</label><input id="fullName" autocomplete="name">
     <label for="nik">NIK Employee</label><input id="nik" autocomplete="off">
     <label for="email">Email</label><input id="email" type="email" autocomplete="email">
@@ -103,17 +105,55 @@ function goStep(n) {
   if (n === 3) { pollSt = setInterval(checkStatus, 6000); checkStatus(); }
 }
 
-$('company').onchange = () => {
-  const ta = $('company').value === 'PT. TELKOM AKSES';
-  $('roleWrap').classList.toggle('hide', !ta); if (!ta) $('role').value = '';
-};
+// Daftar company dari backend: [{n:'NAMA', r:['ROLE',...]}]
+let COMPANIES = {};            // KEY (uppercase) -> {n, r}
+const norm = v => v.trim().replace(/\s+/g, ' ').toUpperCase();
+
+(async () => {
+  const r = await api('registerGetCompanies');
+  if (!r.success) return;       // gagal muat: tetap bisa ketik manual
+  const frag = document.createDocumentFragment();
+  r.companies.forEach(c => {
+    COMPANIES[norm(c.n)] = c;
+    const o = document.createElement('option'); o.value = c.n; frag.appendChild(o);
+  });
+  $('companyList').appendChild(frag);
+  updateCompany();
+})();
+
+// Kembalikan {mode:'empty'|'list'|'custom', roles:[...]} untuk teks company saat ini
+function companyState() {
+  const v = norm($('company').value);
+  if (!v) return { mode: 'empty', roles: [] };
+  const c = COMPANIES[v];
+  return c ? { mode: 'list', roles: c.r, name: c.n } : { mode: 'custom', roles: ['MITRA'] };
+}
+function updateCompany() {
+  const st = companyState(), hint = $('coHint'), wrap = $('roleWrap'), sel = $('role');
+  const prev = sel.value; sel.innerHTML = '';
+  wrap.classList.add('hide'); hint.className = 'hint hide';
+  if (st.mode === 'empty') return;
+  if (st.mode === 'custom') {
+    hint.innerHTML = 'Company tidak ada di daftar — akan didaftarkan manual dengan Role Access <b>MITRA</b>.';
+    hint.className = 'hint warn'; return;
+  }
+  if (st.roles.length === 1) {
+    hint.innerHTML = 'Role Access: <b>' + st.roles[0] + '</b>'; hint.className = 'hint'; return;
+  }
+  sel.innerHTML = '<option value="">— Pilih —</option>' + st.roles.map(r => '<option>' + r + '</option>').join('');
+  if (st.roles.includes(prev)) sel.value = prev;
+  wrap.classList.remove('hide');
+}
+$('company').addEventListener('input', updateCompany);
+$('company').addEventListener('change', updateCompany);
 
 $('b1').onclick = async () => {
-  const d = { company: $('company').value, role: $('role').value, fullName: $('fullName').value.trim(),
+  const st = companyState();
+  const d = { company: $('company').value.trim().replace(/\s+/g, ' '), role: $('role').value, fullName: $('fullName').value.trim(),
     nik: $('nik').value.trim(), email: $('email').value.trim(), password: $('pass').value };
   const e = $('e1'); e.classList.add('hide');
-  if (!d.company) return show(e, 'Pilih Company Name.');
-  if (d.company === 'PT. TELKOM AKSES' && !d.role) return show(e, 'Pilih Role Access.');
+  if (st.mode === 'empty' || d.company.length < 3) return show(e, 'Isi Company Name (minimal 3 karakter).');
+  if (st.mode === 'list' && st.roles.length > 1 && !d.role) return show(e, 'Pilih Role Access.');
   if (d.fullName.length < 3) return show(e, 'Full Name minimal 3 karakter.');
   if (!d.nik) return show(e, 'NIK Employee wajib diisi.');
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email)) return show(e, 'Format Email tidak valid.');

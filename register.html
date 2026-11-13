@@ -79,17 +79,23 @@
 </main>
 
 <script>
-const GAS_EXEC_URL = 'https://script.google.com/macros/s/AKfycby2i2ouNqZPI5il8_eNaIOzSTR6YU7Vmhc-A63IfS7F85Xb1n1pcRCrxfOQTz4vwwrh/exec';
+// Ganti <PROJECT_REF> dengan ref project Supabase (Settings > General)
+const FUNCTIONS_URL = 'https://<PROJECT_REF>.supabase.co/functions/v1/register';
 const $ = id => document.getElementById(id);
 let reqId = null, pollTg = null, pollSt = null;
 
-async function api(fn, ...args) {
+// Nama fungsi lama dipertahankan; dipetakan ke "action" Edge Function.
+async function api(fn, a, b) {
+  const body = {
+    registerGetCompanies:  () => ({ action: 'companies' }),
+    registerBegin:         () => ({ action: 'begin', ...a }),
+    registerCheckTelegram: () => ({ action: 'check', requestId: a }),
+    registerVerifyOtp:     () => ({ action: 'verify', requestId: a, otp: b }),
+    registerStatus:        () => ({ action: 'status', requestId: a })
+  }[fn]();
   try {
-    const r = await fetch(GAS_EXEC_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ fn, args }) });
-    const j = await r.json();
-    if (j && j.__routerError) return { success: false, message: j.message };
-    return j;
+    const r = await fetch(FUNCTIONS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    return (await r.json().catch(() => null)) || { success: false, message: 'Respons server tidak valid.' };
   } catch (e) { return { success: false, message: 'Koneksi gagal. Coba lagi.' }; }
 }
 const show = (el, t, ok) => { el.textContent = t; el.classList.remove('hide'); el.classList.toggle('ok', !!ok); };

@@ -80,7 +80,7 @@
 
 <script>
 // Ganti <PROJECT_REF> dengan ref project Supabase (Settings > General)
-const FUNCTIONS_URL = 'https://lhnwbupbqnewhlzdobcr.supabase.co/functions/v1/register';
+const FUNCTIONS_URL = 'https://<PROJECT_REF>.supabase.co/functions/v1/register';
 const $ = id => document.getElementById(id);
 let reqId = null, pollTg = null, pollSt = null;
 
@@ -115,9 +115,11 @@ function goStep(n) {
 let COMPANIES = {};            // KEY (uppercase) -> {n, r}
 const norm = v => v.trim().replace(/\s+/g, ' ').toUpperCase();
 
+let LIST_OK = false;
 (async () => {
   const r = await api('registerGetCompanies');
-  if (!r.success) return;       // gagal muat: tetap bisa ketik manual
+  if (!r.success) { console.error('Gagal memuat daftar company:', r); updateCompany(); return; }
+  LIST_OK = true;
   const frag = document.createDocumentFragment();
   r.companies.forEach(c => {
     COMPANIES[norm(c.n)] = c;
@@ -139,6 +141,10 @@ function updateCompany() {
   const prev = sel.value; sel.innerHTML = '';
   wrap.classList.add('hide'); hint.className = 'hint hide';
   if (st.mode === 'empty') return;
+  if (!LIST_OK) {
+    hint.innerHTML = 'Daftar company belum berhasil dimuat. Periksa koneksi, lalu muat ulang halaman.';
+    hint.className = 'hint warn'; return;
+  }
   if (st.mode === 'custom') {
     hint.innerHTML = 'Company tidak ada di daftar — akan didaftarkan manual dengan Role Access <b>MITRA</b>.';
     hint.className = 'hint warn'; return;
@@ -158,6 +164,7 @@ $('b1').onclick = async () => {
   const d = { company: $('company').value.trim().replace(/\s+/g, ' '), role: $('role').value, fullName: $('fullName').value.trim(),
     nik: $('nik').value.trim(), email: $('email').value.trim(), password: $('pass').value };
   const e = $('e1'); e.classList.add('hide');
+  if (!LIST_OK) return show(e, 'Daftar company belum termuat. Muat ulang halaman, lalu coba lagi.');
   if (st.mode === 'empty' || d.company.length < 3) return show(e, 'Isi Company Name (minimal 3 karakter).');
   if (st.mode === 'list' && st.roles.length > 1 && !d.role) return show(e, 'Pilih Role Access.');
   if (d.fullName.length < 3) return show(e, 'Full Name minimal 3 karakter.');

@@ -1699,7 +1699,6 @@
           <h2 class="pf-hero-name" id="pfHeroName">Memuat...</h2>
           <div class="pf-hero-email" id="pfHeroEmail">-</div>
           <div class="pf-hero-badges">
-            <span class="pf-badge pf-badge-brand" id="pfHeroRole">-</span>
             <span class="pf-badge pf-badge-gray" id="pfHeroStatus">-</span>
             <span class="pf-badge pf-badge-brand" id="pfHeroAdmin" style="display:none">Administrator</span>
           </div>
@@ -1718,7 +1717,6 @@
             <div><dt>Role Access</dt><dd id="prf-access">-</dd></div>
             <div><dt>Username Telegram</dt><dd id="prf-telegram">-</dd></div>
             <div><dt>Status User</dt><dd id="prf-status">-</dd></div>
-            <div><dt>Hak Akses</dt><dd id="prf-admin">-</dd></div>
             <div><dt>Terdaftar Sejak</dt><dd id="prf-created">-</dd></div>
             <div><dt>Login Terakhir</dt><dd id="prf-lastlogin">-</dd></div>
           </dl>
@@ -3747,7 +3745,7 @@
       if (avEl)   avEl.textContent   = initial;
       const set = function (id, v) { const el = document.getElementById(id); if (el) el.textContent = v; };
       set('pfHeroAvatar', initial); set('pfHeroName', name); set('pfHeroEmail', email || '-');
-      set('pfHeroRole', role); set('pfName', name); set('pfEmail', email || '-');
+      set('pfName', name); set('pfEmail', email || '-');
     }
 
     function pfSetStatusBadge_(status) {
@@ -3771,7 +3769,7 @@
     }
     function loadMyProfile(_retried) {
       const setTxt = function (id, v) { const el = document.getElementById(id); if (el) el.textContent = v; };
-      ['prf-nik', 'pfEmail', 'prf-company', 'prf-access', 'prf-telegram', 'prf-status', 'prf-admin', 'prf-created', 'prf-lastlogin']
+      ['prf-nik', 'pfEmail', 'prf-company', 'prf-access', 'prf-telegram', 'prf-status', 'prf-created', 'prf-lastlogin']
         .forEach(function (id) { setTxt(id, '-'); });
       setTxt('pfName', 'Memuat...');
       document.getElementById('prf-password-current').value = '';
@@ -3801,7 +3799,6 @@
           setTxt('prf-lastlogin', fmtProfileDate_(u.lastLoginAt));
           setProfileInfo({ name: u.name, role: u.role, email: u.email });   // header + hero ikut diperbarui
           pfSetStatusBadge_(u.status);
-          setTxt('prf-admin', u.isAdmin ? 'Administrator' : 'Pengguna');
           const admBadge = document.getElementById('pfHeroAdmin');
           if (admBadge) admBadge.style.display = u.isAdmin ? '' : 'none';
         });

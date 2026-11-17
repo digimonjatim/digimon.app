@@ -969,6 +969,7 @@
       .bm-refresh { margin-left: 0; }
     }
   </style>
+  <link rel="stylesheet" href="assets/management.css">
 </head>
 <body data-theme="light">
 
@@ -1038,6 +1039,21 @@
         <div class="submenu-list">
           <a class="sub-nav-item" id="nav-abd-dashboard" onclick="switchPage('abd-dashboard')"><span class="nav-icon-bullet"></span> Dashboard</a>
           <a class="sub-nav-item" id="nav-abd-submit" onclick="switchPage('abd-submit')"><span class="nav-icon-bullet"></span> Submit</a>
+        </div>
+      </div>
+
+      <!-- Management: hanya tampil untuk administrator (klaim "adm" di token; server tetap memeriksa) -->
+      <div class="menu-item-group" id="nav-mg-group" style="display:none">
+        <button class="nav-header-trigger" onclick="toggleAccordion(this)">
+          <div class="nav-header-left">
+            <div class="icon-box-wrapper"><i class="fa-solid fa-lock"></i></div>
+            <span class="menu-title-text">Management</span>
+          </div>
+          <i class="fa-solid fa-chevron-right arrow-icon"></i>
+        </button>
+        <div class="submenu-list">
+          <a class="sub-nav-item" id="nav-mg-user" onclick="switchPage('mg-user')"><span class="nav-icon-bullet"></span> User</a>
+          <a class="sub-nav-item" id="nav-mg-traffic" onclick="switchPage('mg-traffic')"><span class="nav-icon-bullet"></span> Traffic</a>
         </div>
       </div>
     </nav>
@@ -1738,6 +1754,10 @@
     </div>
 
     <!-- ═════════ HALAMAN: COMING SOON (dipakai ulang oleh Survey DSI, Go Live B2B, Monitoring ABD) ═════════ -->
+    <!-- ═════════ HALAMAN: MANAGEMENT (diisi assets/management.js) ═════════ -->
+    <div class="page-section" id="page-mg-user"></div>
+    <div class="page-section" id="page-mg-traffic"></div>
+
     <div class="page-section" id="page-coming-soon">
       <div class="coming-soon-wrap">
         <div class="coming-soon-icon-box"><i class="fa-solid fa-circle-info"></i></div>
@@ -1859,6 +1879,7 @@
           localStorage.setItem('monproj_session_token', r.accessToken);
           localStorage.setItem(REFRESH_KEY_, r.refreshToken);
           SESSION_TOKEN = r.accessToken;
+          if (window.MG) MG.syncMenu();
           return true;
         } finally { setTimeout(function () { refreshInFlight_ = null; }, 0); }
       })();
@@ -1975,7 +1996,20 @@
 
     // opts.rawArgs = true -> argumen dipakai apa adanya (TANPA injeksi segmen
     // aktif). Dipakai Beranda yang meminta B2C dan B2B sekaligus.
+    // Pembungkus: catat latensi/hasil tiap panggilan GAS untuk menu Management > Traffic.
     async function callGAS(fn, args, opts) {
+      const t0 = performance.now();
+      try {
+        const out = await callGASInner_(fn, args, opts);
+        if (window.DGM_TM) DGM_TM.rec(fn, performance.now() - t0, true, 'OK');
+        return out;
+      } catch (e) {
+        if (window.DGM_TM) DGM_TM.rec(fn, performance.now() - t0, false,
+          e && e.name === 'AbortError' ? 'TIMEOUT' : (e && /server autentikasi|terhubung|network|fetch/i.test(e.message || '') ? 'NETWORK' : 'ERROR'));
+        throw e;
+      }
+    }
+    async function callGASInner_(fn, args, opts) {
       args = (opts && opts.rawArgs) ? (args || []) : glInjectSegmentArg_(fn, args);
       let res;
       // Perbarui access token lebih dulu bila tinggal < 60 detik
@@ -4074,6 +4108,16 @@
     // yang sama, dengan judul/deskripsi diisi dari sini (bukan alert
     // seperti sebelumnya -- sekarang Coming Soon tampil DI PAGE).
     const PAGE_META = {
+      'mg-user': {
+        navId: 'nav-mg-user', customPage: 'page-mg-user',
+        title: 'Management — User', subtitle: 'Kelola akun, status, role, dan akses pengguna',
+        onEnter: function () { if (window.MG) MG.enterUser(); }
+      },
+      'mg-traffic': {
+        navId: 'nav-mg-traffic', customPage: 'page-mg-traffic',
+        title: 'Management — Traffic', subtitle: 'Monitoring dan kontrol traffic API',
+        onEnter: function () { if (window.MG) MG.enterTraffic(); }
+      },
       'beranda': {
         navId: 'nav-beranda',
         customPage: 'page-beranda',
@@ -5944,5 +5988,6 @@
   </script>
 
 
+  <script src="assets/management.js"></script>
 </body>
 </html>

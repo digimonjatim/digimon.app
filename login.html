@@ -425,8 +425,8 @@
 
           <form onsubmit="doLogin(event); return false;" novalidate class="space-y-4">
             <div>
-              <label for="inputUsername" class="mb-1.5 block text-theme-sm font-medium text-gray-700 dark:text-gray-400">Username</label>
-              <input id="inputUsername" class="auth-input" type="text" autocomplete="username" placeholder="Masukkan username" spellcheck="false">
+              <label for="inputUsername" class="mb-1.5 block text-theme-sm font-medium text-gray-700 dark:text-gray-400">Email atau NIK</label>
+              <input id="inputUsername" class="auth-input" type="text" autocomplete="username" placeholder="Masukkan email atau NIK" spellcheck="false">
             </div>
 
             <div>
@@ -463,6 +463,8 @@
               <svg id="btnArrow" class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block"><path d="M5 12h14"></path><path d="m13 6 6 6-6 6"></path></svg>
             </button>
           </form>
+
+          <p class="mt-4 text-center text-theme-sm text-gray-500 dark:text-gray-400">Belum punya akun? <a href="register.html" class="font-semibold text-brand-500 hover:underline dark:text-brand-300">Daftar</a></p>
 
           <p class="mt-6 text-center text-theme-xs text-gray-400"><span class="font-medium text-gray-500 dark:text-gray-400">DIGIMON</span> &nbsp;·&nbsp; © 2026</p>
         </section>
@@ -504,6 +506,23 @@
     // Wrapper pengganti google.script.run. Body dikirim sebagai STRING
     // JSON dengan Content-Type text/plain supaya browser tidak kirim
     // CORS preflight (GAS tidak bisa merespons preflight OPTIONS).
+    // ---- Autentikasi v2: Edge Function "auth" di Supabase (bukan GAS) ----
+    // Sesuaikan slug di akhir URL dengan Endpoint URL fungsi "auth" di dashboard Supabase.
+    const AUTH_URL = 'https://lhnwbupbqnewhlzdobcr.supabase.co/functions/v1/auth';
+    async function authCall(action, body) {
+      const controller = new AbortController();
+      const timer = setTimeout(function () { controller.abort(); }, 15000);
+      try {
+        const res = await fetch(AUTH_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(Object.assign({ action: action }, body || {})),
+          signal: controller.signal
+        });
+        return (await res.json().catch(function () { return null; })) || { success: false, message: 'Respons server tidak valid.' };
+      } finally { clearTimeout(timer); }
+    }
+
     async function callGAS(fn, args) {
       const res = await fetch(GAS_EXEC_URL, {
         method: 'POST',
@@ -892,7 +911,7 @@
       const password = document.getElementById('inputPassword').value.trim();
 
       if (!username || !password) {
-        showAlert('warning', 'Username dan password tidak boleh kosong.', 'Data Belum Lengkap', function () {
+        showAlert('warning', 'Email/NIK dan password tidak boleh kosong.', 'Data Belum Lengkap', function () {
           document.getElementById(!username ? 'inputUsername' : 'inputPassword').focus();
         });
         shakeCard();
@@ -902,7 +921,7 @@
       isSubmitting = true;
       setLoading(true);
 
-      callGAS('validateLogin', [username, password])
+      authCall('login', { identifier: username, password: password })
         .then(function(result) {
           setLoading(false);
 
@@ -917,7 +936,8 @@
 
             // Token sesi disimpan di localStorage. index.html membacanya
             // balik dari sini di setiap panggilan API.
-            localStorage.setItem('monproj_session_token', result.token);
+            localStorage.setItem('monproj_session_token', result.accessToken);
+            localStorage.setItem('monproj_refresh_token', result.refreshToken);
 
             setTimeout(function() {
               // Dulu: window.top.location.href = result.redirectUrl
@@ -936,7 +956,7 @@
             isSubmitting = false;
             showAlert(
               'error',
-              result.message || 'Username atau password salah.',
+              result.message || 'Email/NIK atau password salah.',
               'Login Gagal',
               function () {
                 const pw = document.getElementById('inputPassword');

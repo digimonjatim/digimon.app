@@ -6,7 +6,7 @@
   // Sesuaikan slug di akhir URL dengan Endpoint URL fungsi "admin" di dashboard Supabase.
   var ADMIN_URL = 'https://lhnwbupbqnewhlzdobcr.supabase.co/functions/v1/admin';
   var STATUSES = ['Active', 'Inactive', 'Pending', 'Locked', 'Rejected'];
-  var ROLES = ['MITRA', 'TSEL', 'TELKOM GROUP', 'TIF', 'SDI', 'CONSTRUCTION', 'OPERATION'];
+  var ROLES = ['MITRA', 'TSEL', 'TELKOM GROUP', 'TIF', 'SDI', 'CONSTRUCTION', 'OPERATION', 'ADMINISTRATOR'];
 
   function $(id) { return document.getElementById(id); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); }

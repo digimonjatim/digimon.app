@@ -1694,11 +1694,15 @@
           <h3 class="pf-title"><i class="fa-solid fa-user"></i> Informasi Akun</h3>
           <p class="pf-desc">Data akun login Anda pada sistem DIGIMON.</p>
           <dl class="pf-info">
-            <div><dt>Nama</dt><dd id="pfName">-</dd></div>
+            <div><dt>Nama Lengkap</dt><dd id="pfName">-</dd></div>
+            <div><dt>NIK Employee</dt><dd id="prf-nik">-</dd></div>
             <div><dt>Email</dt><dd id="pfEmail">-</dd></div>
-            <div><dt>Username</dt><dd id="prf-username">-</dd></div>
-            <div><dt>Level Access</dt><dd id="prf-access">-</dd></div>
-            <div><dt>Status</dt><dd id="prf-status">-</dd></div>
+            <div><dt>Company Name</dt><dd id="prf-company">-</dd></div>
+            <div><dt>Role Access</dt><dd id="prf-access">-</dd></div>
+            <div><dt>Username Telegram</dt><dd id="prf-telegram">-</dd></div>
+            <div><dt>Status User</dt><dd id="prf-status">-</dd></div>
+            <div><dt>Terdaftar Sejak</dt><dd id="prf-created">-</dd></div>
+            <div><dt>Login Terakhir</dt><dd id="prf-lastlogin">-</dd></div>
           </dl>
         </section>
 
@@ -3722,30 +3726,46 @@
     // Profil Saya sekarang halaman sendiri (page-profile), bukan pop up.
     function openProfileSettings() { switchPage('profile'); }
 
-    function loadMyProfile() {
-      document.getElementById('prf-username').textContent = 'Memuat...';
-      document.getElementById('prf-access').textContent   = '-';
-      document.getElementById('prf-status').textContent   = '-';
+    // Data profil diambil LANGSUNG dari database (action "me"), jadi selalu yang terbaru
+    // (nama, company, role, status, Telegram), bukan salinan lama di dalam token login.
+    function fmtProfileDate_(iso) {
+      if (!iso) return '-';
+      const d = new Date(iso);
+      return isNaN(d) ? '-' : d.toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+    function loadMyProfile(_retried) {
+      const setTxt = function (id, v) { const el = document.getElementById(id); if (el) el.textContent = v; };
+      ['prf-nik', 'pfEmail', 'prf-company', 'prf-access', 'prf-telegram', 'prf-status', 'prf-created', 'prf-lastlogin']
+        .forEach(function (id) { setTxt(id, '-'); });
+      setTxt('pfName', 'Memuat...');
       document.getElementById('prf-password-current').value = '';
 
-      google.script.run
-        .withSuccessHandler(function(res) {
-          if (!res || res.success === false) {
-            document.getElementById('prf-username').textContent = '-';
+      Promise.resolve(jwtExpMs_(SESSION_TOKEN) - Date.now() < 60000 ? refreshAccess_() : true)
+        .then(function () { return authCall_('me', { accessToken: SESSION_TOKEN }); })
+        .then(function (res) {
+          if (res && res.code === 'UNAUTHORIZED' && !_retried) {
+            return refreshAccess_().then(function (ok) {
+              if (ok) { loadMyProfile(true); return; }
+              if (ok === false) { clearAuth_(); window.location.replace('login.html'); return; }
+              setTxt('pfName', '-'); showAppNotif('error', 'Tidak bisa terhubung ke server autentikasi.');
+            });
+          }
+          if (!res || !res.success) {
+            setTxt('pfName', '-');
             showAppNotif('error', (res && res.message) || 'Gagal memuat data profil.');
             return;
           }
-          document.getElementById('prf-username').textContent = res.username    || '-';
-          document.getElementById('prf-access').textContent   = res.accessLevel || '-';
-          document.getElementById('prf-status').textContent   = res.status      || '-';
-          document.getElementById('prf-password-current').value = '';   // password tidak lagi dikirim server
-          pfSetStatusBadge_(res.status);
-        })
-        .withFailureHandler(function(err) {
-          document.getElementById('prf-username').textContent = '-';
-          showAppNotif('error', 'Terjadi kesalahan: ' + (err && err.message ? err.message : err));
-        })
-        .getMyProfile(SESSION_TOKEN);
+          const u = res.profile || {};
+          setTxt('prf-nik', u.nik || '-');
+          setTxt('prf-company', (u.company || '-') + (u.companyCustom ? ' (diinput manual)' : ''));
+          setTxt('prf-access', u.role || '-');
+          setTxt('prf-telegram', u.telegram || '-');
+          setTxt('prf-status', u.status || '-');
+          setTxt('prf-created', fmtProfileDate_(u.createdAt));
+          setTxt('prf-lastlogin', fmtProfileDate_(u.lastLoginAt));
+          setProfileInfo({ name: u.name, role: u.role, email: u.email });   // header + hero ikut diperbarui
+          pfSetStatusBadge_(u.status);
+        });
     }
 
     function togglePasswordVisibility(inputId, btn) {

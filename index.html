@@ -1708,7 +1708,7 @@
           <div class="pf-field">
             <label class="pf-label" for="prf-password-current">Password saat ini</label>
             <div class="pf-pw">
-              <input type="password" id="prf-password-current" class="pf-input" readonly placeholder="Disembunyikan demi keamanan">
+              <input type="password" id="prf-password-current" class="pf-input" autocomplete="current-password" placeholder="Masukkan password saat ini">
               <button type="button" class="pf-eye" onclick="togglePasswordVisibility('prf-password-current', this)" aria-label="Tampilkan password"><i class="fa-solid fa-eye"></i></button>
             </div>
           </div>
@@ -1805,10 +1805,60 @@
     // Token sesi dibaca dari localStorage (diisi login.html saat login
     // berhasil). Kalau tidak ada token sama sekali, user belum login --
     // tendang balik ke halaman login statis.
-    const SESSION_TOKEN = localStorage.getItem('monproj_session_token');
+    let SESSION_TOKEN = localStorage.getItem('monproj_session_token');
 
     if (!SESSION_TOKEN) {
       window.location.replace('login.html');
+    }
+
+    // ── Autentikasi v2: access token = JWT 1 jam dari Edge Function "auth" (Supabase);
+    //    refresh token (sesi maks 12 jam) menukarnya otomatis sebelum habis. ──
+    // Sesuaikan slug di akhir URL dengan Endpoint URL fungsi "auth" di dashboard Supabase.
+    const AUTH_URL = 'https://lhnwbupbqnewhlzdobcr.supabase.co/functions/v1/auth';
+    const REFRESH_KEY_ = 'monproj_refresh_token';
+
+    async function authCall_(action, body) {
+      const controller = new AbortController();
+      const timer = setTimeout(function () { controller.abort(); }, 15000);
+      try {
+        const res = await fetch(AUTH_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(Object.assign({ action: action }, body || {})),
+          signal: controller.signal
+        });
+        return (await res.json().catch(function () { return null; })) || { success: false, message: 'Respons server tidak valid.' };
+      } catch (e) {
+        return { success: false, network: true, message: 'Tidak bisa terhubung ke server autentikasi.' };
+      } finally { clearTimeout(timer); }
+    }
+    function jwtExpMs_(t) {
+      try { return JSON.parse(atob(String(t).split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).exp * 1000; }
+      catch (e) { return 0; }
+    }
+    function clearAuth_() {
+      try { localStorage.removeItem('monproj_session_token'); localStorage.removeItem(REFRESH_KEY_); } catch (e) {}
+    }
+    // Hasil: true = token diperbarui, false = sesi memang berakhir, null = gagal jaringan (jangan logout).
+    let refreshInFlight_ = null;
+    function refreshAccess_() {
+      if (refreshInFlight_) return refreshInFlight_;           // satu refresh saja untuk banyak panggilan paralel
+      refreshInFlight_ = (async function () {
+        try {
+          const stored = localStorage.getItem('monproj_session_token');   // tab lain mungkin sudah me-refresh
+          if (stored && stored !== SESSION_TOKEN && jwtExpMs_(stored) - Date.now() > 60000) { SESSION_TOKEN = stored; return true; }
+          const rt = localStorage.getItem(REFRESH_KEY_);
+          if (!rt) return false;
+          const r = await authCall_('refresh', { refreshToken: rt });
+          if (r && r.network) return null;
+          if (!r || !r.success) return false;
+          localStorage.setItem('monproj_session_token', r.accessToken);
+          localStorage.setItem(REFRESH_KEY_, r.refreshToken);
+          SESSION_TOKEN = r.accessToken;
+          return true;
+        } finally { setTimeout(function () { refreshInFlight_ = null; }, 0); }
+      })();
+      return refreshInFlight_;
     }
 
     // PWA — daftar fn yang HASILNYA boleh disimpan sebagai cache lokal
@@ -1924,6 +1974,8 @@
     async function callGAS(fn, args, opts) {
       args = (opts && opts.rawArgs) ? (args || []) : glInjectSegmentArg_(fn, args);
       let res;
+      // Perbarui access token lebih dulu bila tinggal < 60 detik
+      if (jwtExpMs_(SESSION_TOKEN) - Date.now() < 60000) await refreshAccess_();
 
       // AbortController: paksa batalkan request kalau server tidak
       // merespons dalam GAS_CALL_TIMEOUT_MS (lihat catatan di deklarasi
@@ -1968,6 +2020,12 @@
 
       if (data && data.__routerError) {
         if (data.code === 'UNAUTHORIZED') {
+          // Coba perbarui token sekali lalu ulangi panggilan; logout hanya bila sesi benar-benar berakhir.
+          if (!(opts && opts._retried)) {
+            const rf = await refreshAccess_();
+            if (rf) return callGAS(fn, args, Object.assign({}, opts, { rawArgs: true, _retried: true }));
+            if (rf === null) throw new Error('Tidak bisa terhubung ke server autentikasi. Coba lagi.');
+          }
           // FIX #4 (selaras dengan code.gs): field debug* sekarang cuma
           // dikirim backend kalau DEBUG_LOGIN=true di sana. Kalau tidak
           // ada (mode produksi), cukup log pesan singkat tanpa field
@@ -1984,7 +2042,7 @@
           } else {
             console.warn('[SESI DITOLAK] fn=' + fn + ' -- sesi tidak valid/kadaluarsa. (Set DEBUG_LOGIN=true di code.gs untuk detail lebih lanjut.)');
           }
-          localStorage.removeItem('monproj_session_token');
+          clearAuth_();
           // Tandai supaya login.html menampilkan pop up "Sesi Berakhir",
           // dan bungkam pop up error lain selama halaman ini pindah.
           appSessionEnding_ = true;
@@ -3714,8 +3772,13 @@
         showAppNotif('warning', 'Konfirmasi password baru tidak cocok.', 'Periksa Kembali');
         return;
       }
-      if (newPass.length < 4) {
-        showAppNotif('warning', 'Password baru minimal 4 karakter.', 'Periksa Kembali');
+      if (newPass.length < 8) {
+        showAppNotif('warning', 'Password baru minimal 8 karakter.', 'Periksa Kembali');
+        return;
+      }
+      const curPass = document.getElementById('prf-password-current').value;
+      if (!curPass) {
+        showAppNotif('warning', 'Isi password saat ini terlebih dahulu.', 'Periksa Kembali');
         return;
       }
 
@@ -3723,25 +3786,24 @@
       btn.disabled = true;
       btn.textContent = 'MENYIMPAN...';
 
-      google.script.run
-        .withSuccessHandler(function(res) {
+      Promise.resolve(jwtExpMs_(SESSION_TOKEN) - Date.now() < 60000 ? refreshAccess_() : true)
+        .then(function () {
+          return authCall_('change_password', { accessToken: SESSION_TOKEN, currentPassword: curPass, newPassword: newPass });
+        })
+        .then(function (res) {
           btn.disabled = false;
           btn.textContent = 'SIMPAN PASSWORD';
           if (res && res.success) {
-            showAppNotif('success', res.message || 'Password berhasil diperbarui.', 'Password Diperbarui');
-            document.getElementById('prf-password-new').value = '';
-            document.getElementById('prf-password-confirm').value = '';
-            document.getElementById('prf-password-current').value = '';
+            ['prf-password-new', 'prf-password-confirm', 'prf-password-current'].forEach(function (id) {
+              document.getElementById(id).value = '';
+            });
+            // Semua sesi dicabut server -> wajib login ulang dengan password baru
+            showAppNotif('success', res.message || 'Password berhasil diperbarui. Silakan login ulang.', 'Password Diperbarui',
+              function () { clearAuth_(); window.location.replace('login.html'); });
           } else {
             showAppNotif('error', (res && res.message) || 'Gagal memperbarui password.');
           }
-        })
-        .withFailureHandler(function(err) {
-          btn.disabled = false;
-          btn.textContent = 'SIMPAN PASSWORD';
-          showAppNotif('error', 'Terjadi kesalahan: ' + (err && err.message ? err.message : err));
-        })
-        .updateMyPassword(SESSION_TOKEN, newPass);
+        });
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -3825,16 +3887,12 @@
       btn.disabled = true;
       btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Memproses...';
 
-      try { localStorage.removeItem('monproj_session_token'); } catch (e) {}
-
-      google.script.run
-        .withSuccessHandler(function() {
-          window.location.replace('login.html');
-        })
-        .withFailureHandler(function() {
-          window.location.replace('login.html');
-        })
-        .logoutSession(SESSION_TOKEN);
+      const rt = localStorage.getItem(REFRESH_KEY_);
+      clearAuth_();
+      // Cabut refresh token di server; apa pun hasilnya, tetap kembali ke halaman login
+      authCall_('logout', { refreshToken: rt }).then(function () {
+        window.location.replace('login.html');
+      });
     }
 
     // ══════════════════════════════════════════════════════════════

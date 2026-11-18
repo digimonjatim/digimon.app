@@ -179,7 +179,7 @@
           '<option value="1">1 jam terakhir</option><option value="6">6 jam terakhir</option><option value="24" selected>24 jam terakhir</option><option value="168">7 hari terakhir</option><option value="720">30 hari terakhir</option></select>' +
           '<label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="mgAuto" checked> Auto-refresh 30 dtk</label><button class="mg-btn" id="mgTReload">Muat ulang</button></div>' +
           '<div id="mgSumBody"><div class="mg-empty">Memuat…</div></div></section>' +
-        '<section id="mgTLog" hidden><div class="mg-toolbar"><select class="mg-select" id="mgLSrc"><option value="">Semua sumber</option><option value="auth">auth</option><option value="register">register</option><option value="gas">gas (data dashboard)</option></select>' +
+        '<section id="mgTLog" hidden><div class="mg-toolbar"><select class="mg-select" id="mgLSrc"><option value="">Semua sumber</option><option value="auth">auth</option><option value="register">register</option><option value="measure">measure (Measure OLO)</option><option value="gas">gas (data dashboard)</option></select>' +
           '<select class="mg-select" id="mgLRes"><option value="all">Semua hasil</option><option value="ok">Sukses</option><option value="error">Error / ditolak</option></select>' +
           '<input class="mg-input" id="mgLIp" placeholder="Filter IP (persis)"><button class="mg-btn pri" id="mgLGo">Terapkan</button></div>' +
           '<div class="mg-wrap"><table class="mg-table"><thead><tr><th>Waktu</th><th>Sumber</th><th>Aksi</th><th>Status</th><th class="num">ms</th><th>IP</th><th>User</th></tr></thead><tbody id="mgLBody"></tbody></table></div><div class="mg-pager" id="mgLPager"></div></section>' +

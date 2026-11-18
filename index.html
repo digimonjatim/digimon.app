@@ -970,6 +970,7 @@
     }
   </style>
   <link rel="stylesheet" href="assets/management.css">
+  <link rel="stylesheet" href="assets/measure.css">
 </head>
 <body data-theme="light">
 
@@ -1041,6 +1042,11 @@
           <a class="sub-nav-item" id="nav-abd-submit" onclick="switchPage('abd-submit')"><span class="nav-icon-bullet"></span> Submit</a>
         </div>
       </div>
+
+      <!-- Measure OLO (menu tunggal): assessment Need JT / Tanpa JT layanan OLO -->
+      <button type="button" class="nav-header-trigger" id="nav-measure-olo" onclick="switchPage('measure-olo')" title="Measure OLO">
+        <span class="nav-header-left"><span class="icon-box-wrapper"><i class="fa-solid fa-location-dot"></i></span><span class="menu-title-text">Measure OLO</span></span>
+      </button>
 
       <!-- Management: hanya tampil untuk administrator (klaim "adm" di token; server tetap memeriksa) -->
       <div class="menu-item-group" id="nav-mg-group" style="display:none">
@@ -1755,6 +1761,7 @@
 
     <!-- ═════════ HALAMAN: COMING SOON (dipakai ulang oleh Survey DSI, Go Live B2B, Monitoring ABD) ═════════ -->
     <!-- ═════════ HALAMAN: MANAGEMENT (diisi assets/management.js) ═════════ -->
+    <div class="page-section" id="page-measure-olo"></div>
     <div class="page-section" id="page-mg-user"></div>
     <div class="page-section" id="page-mg-traffic"></div>
 
@@ -4110,6 +4117,11 @@
     // yang sama, dengan judul/deskripsi diisi dari sini (bukan alert
     // seperti sebelumnya -- sekarang Coming Soon tampil DI PAGE).
     const PAGE_META = {
+      'measure-olo': {
+        navId: 'nav-measure-olo', customPage: 'page-measure-olo',
+        title: 'Measure OLO', subtitle: 'Assessment Need JT / Tanpa JT layanan OLO berdasarkan jarak jalan',
+        onEnter: function () { if (window.MO) MO.enter(); }
+      },
       'mg-user': {
         navId: 'nav-mg-user', customPage: 'page-mg-user',
         title: 'Management — User', subtitle: 'Kelola akun, status, role, dan akses pengguna',
@@ -5991,5 +6003,6 @@
 
 
   <script src="assets/management.js"></script>
+  <script src="assets/measure.js"></script>
 </body>
 </html>

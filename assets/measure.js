@@ -54,7 +54,7 @@
           '</div>' +
           '<p class="mg-note">Klik peta atau geser pin untuk menentukan titik order. Koordinat dari Google Maps (mis. <b>-7.2756, 112.7482</b>) bisa ditempel ke kolom Latitude.</p>' +
           '<div id="moMap" class="mo-map"><div class="mo-empty-map">Memuat peta…</div></div>' +
-          '<div class="mo-legend"><span><i style="background:#12b76a"></i>ODP port available</span><span><i style="background:#667085"></i>ODP penuh</span><span><i style="background:#1f5fae"></i>ODP terpilih</span><span><i style="background:#b42318"></i>OLT</span>' +
+          '<div class="mo-legend"><span><i class="mo-lg" style="background:#12b76a"></i>ODP (alpro) port available</span><span><i class="mo-lg" style="background:#667085"></i>ODP penuh</span><span><i class="mo-lg" style="background:#f79009"></i>ODP terpilih</span><span><i class="mo-lg mo-lg-sq" style="background:#b42318"></i>OLT (gpon)</span><span>📍 Titik order</span>' +
             '<label><input type="checkbox" id="moFull"> Tampilkan ODP penuh</label></div>' +
           '<div class="mo-summary" id="moSummary"></div>' +
         '</div>' +
@@ -100,7 +100,7 @@
       L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(S.map);
       S.odpLayer = L.layerGroup().addTo(S.map);
       S.routeLayer = L.layerGroup().addTo(S.map);
-      S.map.on('click', function (e) { setPoint(e.latlng.lat, e.latlng.lng, false); });
+      S.map.on('click', function (e) { if (S.markerClick) { S.markerClick = false; return; } setPoint(e.latlng.lat, e.latlng.lng, false); });
       syncPinFromInputs(false);
       setTimeout(function () { S.map.invalidateSize(); }, 150);
     }).catch(function () { $('moMap').innerHTML = '<div class="mo-empty-map">Peta gagal dimuat. Muat ulang halaman.</div>'; });
@@ -132,10 +132,13 @@
     drawOdps(true);
   }
 
-  function markerStyle(o, selected) {
-    if (selected) return { radius: 11, color: '#fff', weight: 3, fillColor: '#1f5fae', fillOpacity: 1 };
-    return isAvail(o) ? { radius: 9, color: '#fff', weight: 2, fillColor: '#12b76a', fillOpacity: 1 }
-                      : { radius: 7, color: '#fff', weight: 2, fillColor: '#667085', fillOpacity: .9 };
+  // Ikon berbeda: ODP/alpro = LINGKARAN "ODP" (hijau/abu/oranye), OLT/gpon = KOTAK merah "OLT"
+  function odpIcon(o, selected) {
+    var st = selected ? 'sel' : (isAvail(o) ? 'avail' : 'full'), sz = selected ? 30 : 24;
+    return L.divIcon({ className: 'mo-ico', html: '<div class="mo-odp ' + st + '">ODP</div>', iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2] });
+  }
+  function oltIcon() {
+    return L.divIcon({ className: 'mo-ico', html: '<div class="mo-olt">OLT</div>', iconSize: [32, 32], iconAnchor: [16, 16] });
   }
   function drawOdps(fit) {
     if (!S.map || !S.checked) return;
@@ -145,9 +148,9 @@
     S.circle = L.circle([S.checked.lat, S.checked.lon], { radius: S.radius, color: '#1f5fae', weight: 2, fillColor: '#1f5fae', fillOpacity: .06, dashArray: '6 6', interactive: false }).addTo(S.map);
     Object.keys(S.odps).forEach(function (id) {
       var o = S.odps[id]; if (!isAvail(o) && !showFull) return;
-      var m = L.circleMarker([o.latitude, o.longitude], markerStyle(o, S.sel === o.id)).addTo(S.odpLayer);
+      var m = L.marker([o.latitude, o.longitude], { icon: odpIcon(o, S.sel === o.id), riseOnHover: true, keyboard: false, zIndexOffset: S.sel === o.id ? 1000 : 0 }).addTo(S.odpLayer);
       m.bindTooltip(esc(o.nama_alpro) + ' · available ' + fmtN(o.available), { direction: 'top' });
-      m.on('click', function () { selectOdp(o.id); });
+      m.on('click', function (ev) { S.markerClick = true; L.DomEvent.stopPropagation(ev); selectOdp(o.id); setTimeout(function () { S.markerClick = false; }, 0); });
       S.markers[o.id] = m;
     });
     if (fit === true) S.map.fitBounds(S.circle.getBounds().pad(0.2), { maxZoom: 18 });
@@ -157,7 +160,7 @@
   function selectOdp(id) {
     var o = S.odps[id]; if (!o) return;
     S.sel = id;
-    Object.keys(S.markers).forEach(function (k) { S.markers[k].setStyle(markerStyle(S.odps[k], Number(k) === id)); });
+    Object.keys(S.markers).forEach(function (k) { var sel = Number(k) === id; S.markers[k].setIcon(odpIcon(S.odps[k], sel)); S.markers[k].setZIndexOffset(sel ? 1000 : 0); });
     var avail = isAvail(o);
     $('moSel').innerHTML =
       '<div class="mg-card"><div class="mo-sel-head"><h3>ODP terpilih: ' + esc(o.nama_alpro) + ' &nbsp;' + (avail ? '<span class="mg-badge ok">PORT AVAILABLE</span>' : '<span class="mg-badge err">PENUH</span>') + '</h3>' +
@@ -199,7 +202,7 @@
       L.polyline(d.geometry, { color: d.estimated ? '#f79009' : '#1f5fae', weight: 5, opacity: .85, dashArray: d.estimated ? '8 8' : null }).addTo(S.routeLayer);
       pts = pts.concat(d.geometry);
     }
-    L.circleMarker([d.olt.latitude, d.olt.longitude], { radius: 10, color: '#fff', weight: 3, fillColor: '#b42318', fillOpacity: 1 })
+    L.marker([d.olt.latitude, d.olt.longitude], { icon: oltIcon(), keyboard: false, zIndexOffset: 900 })
       .bindPopup('<b>' + esc(d.olt.hostname_olt) + '</b><br>' + esc(d.olt.ip_olt || '') + '<br>' + (d.olt.is_xgspon ? 'XGSPON' : 'non-XGSPON')).addTo(S.routeLayer);
     pts.push([d.olt.latitude, d.olt.longitude]);
     S.map.fitBounds(L.latLngBounds(pts).pad(0.12), { maxZoom: 17 });
